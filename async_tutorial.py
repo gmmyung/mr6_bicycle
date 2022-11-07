@@ -8,3 +8,4 @@ async def main_async():
 a = 1
 
 print(a)
+a+=1
