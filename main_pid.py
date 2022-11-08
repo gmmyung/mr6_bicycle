@@ -1,28 +1,26 @@
-from main import main
+from main import Main
 import time
 
-class pid_control(main):
+class pid_control(Main):
 
-    def __init__(self, )
+    def __init__(self, kp, ki, kd):
+        self.kp = 0.3
+        self.ki = 0.2
+        self.kd = 0.4
 
-    def calc(self):
+    def calc(self): #pid 제어 계산
+        time_now = time.time()
+        target_degree = self.calc_degree()
+
         error = target_degree - pre_servo_degree
+        de = error - error_prev
+        dt = time_now - time_prev
 
-time.time
-
-
-global pre_servo_degree
-global time_prev
-global error_prev
-global error
-
-error = target_degree-pre_servo_degree
-de = error-error_prev 
-dt=time.time()-time_prev
-
-angle = kp*error + kd*de/dt + ki*error*dt
-
-error_prev = error
-time_prev = time.time()
-
-servo1.turn_to_deg(angle,  1)    
+        angle = self.kp*error + self.kd*de/dt + self.ki*error*dt
+        pre_servo_degree = target_degree
+        error_prev = error
+        time_prev = time_now
+    
+    def calc_degree(self): #역학식 바탕으로 target_degree 계산
+        target_degree = 11
+        return target_degree
