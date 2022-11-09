@@ -1,7 +1,7 @@
 import multiprocessing as mp
-#from encoder import Encoder
+from encoder import Encoder
 from gyro import Gyro
-#from servo_motor import Servo_motor
+from servo_motor import Servo_motor
 import time
 from threading import Thread
 from graph import graph
@@ -17,8 +17,8 @@ class Main:
         self.frequency = 20 #5Hz
 
         self.encoder_q = mp.Queue()
-        #self.e = Encoder(36, self.encoder_q, sample_rate = self.frequency)
-        #self.encoder_proc = mp.Process(target=self.e.run)
+        self.e = Encoder(36, self.encoder_q, sample_rate = self.frequency)
+        self.encoder_proc = mp.Process(target=self.e.run)
 
 
         self.gyro_q = mp.Queue()
@@ -26,12 +26,10 @@ class Main:
         self.gyro_proc = mp.Process(target=self.g.run_pseudo)
         
         self.actuator_q = mp.Queue()
-        #self.servo_q = mp.Queue
-        #self.s = Servo_motor(31) #board num 31 is bcm num 6
+        self.servo_q = mp.Queue
+        self.s = Servo_motor(31) #board num 31 is bcm num 6
 
         self.command_q = command_q
-        
-        #self.clear_q(self.gyro_q)
         
         print("main initialized")
         
@@ -41,9 +39,10 @@ class Main:
         return
     
     def run(self):
-        gr = graph(1, (30,), (600, 1000))
-        #self.encoder_proc.start()
+        self.encoder_proc.start()
         self.gyro_proc.start()
+        
+        gr = graph(1, (30,), (600, 1000))
         Thread(target=gr.run, args=(self.gyro_q,)).run()
 
         while True:

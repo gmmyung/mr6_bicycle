@@ -1,6 +1,6 @@
 import time
 import math
-#import mpu6050
+import mpu6050
 import multiprocessing as mp
 import random
 
@@ -10,7 +10,7 @@ class Gyro:
         self.sample_rate = sample_rate
         
         # Sensor initialization
-        """
+        
         self.mpu = mpu6050.MPU6050()
         self.mpu.dmpInitialize()
         self.mpu.setDMPEnabled(True)
@@ -18,8 +18,7 @@ class Gyro:
 
         # get expected DMP packet size for later comparison
         self.packetSize = self.mpu.dmpGetFIFOPacketSize()
-        """
-    """
+        
     def run(self):
         while True:
             # Get INT_STATUS byte
@@ -53,15 +52,8 @@ class Gyro:
                 self.queue.put(ans)
                 print("raw", self.queue.get())
                 #print(self.queue.size)
-    """
     
-    def run_pseudo(self):
-        d = 0
-        while True:
-            d += (random.random() - 0.5)
-            self.queue.put(d)
-            time.sleep(1 / self.sample_rate)
-
+    
 if __name__ == '__main__':
     test_q = mp.Queue()
     test_gyro = Gyro(test_q, sample_rate = 100)

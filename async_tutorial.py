@@ -18,3 +18,12 @@ try:
     loop.run_until_complete(task)
 except asyncio.CancelledError:
     pass
+
+async def main_async():
+    
+    await do_async()
+
+a = 1
+
+print(a)
+a+=1
