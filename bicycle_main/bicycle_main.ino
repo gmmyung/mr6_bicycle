@@ -123,6 +123,12 @@ MPU6050 mpu;
 
 #define INTERRUPT_PIN 2  // use pin 2 on Arduino Uno & most boards
 #define LED_PIN 13 // (Arduino is 13, Teensy is 11, Teensy++ is 6)
+
+#define kp 0.3
+#define ki 0.2
+#define kd 0.4
+#define e 2.71828
+
 bool blinkState = false;
 
 // MPU control/status vars
@@ -145,11 +151,7 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 // packet structure for InvenSense teapot demo
 uint8_t teapotPacket[14] = { '$', 0x02, 0,0, 0,0, 0,0, 0,0, 0x00, 0x00, '\r', '\n' };
 
-//초기값설정
-#define kp = 0.3
-#define ki = 0.2
-#define kd = 0.4
-#define e = 2.71828;
+
 float error_prev = 0;
 float pre_servo_degree = 0;
 float mass; //자전거의 질량
@@ -380,12 +382,11 @@ void counting()
   unsigned long currentTime = micros();
   // Serial.println(currentTime - lastHitTime);
   currentVel = 1 / 20.0 / (((float)(currentTime - lastHitTime) / 1000000) / 60);
-  calc_pid(currentTime, lastHitTime)
   lastHitTime = currentTime;
   velMovAvg.addValue(currentVel);
 }
 
-float calc_pid(currentTime, lastHitTime)
+float calc_pid(unsigned long currentTime, unsigned long lastHitTime)
 {
     float target_degree;
     float error;
@@ -402,13 +403,13 @@ float calc_pid(currentTime, lastHitTime)
     pre_servo_degree = target_degree;
     error_prev = error;
 
-    return angle //최종적으로 돌아가야되는 서보모터 각도
+    return angle; //최종적으로 돌아가야되는 서보모터 각도
 }
 
 float calc_degree()
 {
     float degree;
-    degree = g*b*sin(pi)/(v*v)*(1-pow(e, h*m*v*t/D));
+    degree = g * b * sin(pi) / (v * v) * (1 - pow(e, h * m * v * t / D));
 
     return degree;
 }
