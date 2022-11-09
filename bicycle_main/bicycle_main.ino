@@ -4,7 +4,7 @@
 //
 // Changelog:
 //      2019-07-08 - Added Auto Calibration and offset generator
-//		   - and altered FIFO retrieval sequence to avoid using blocking code
+//       - and altered FIFO retrieval sequence to avoid using blocking code
 //      2016-04-18 - Eliminated a potential infinite loop
 //      2013-05-08 - added seamless Fastwire support
 //                 - added note about gyro calibration
@@ -23,17 +23,14 @@
 /* ============================================
 I2Cdev device library code is placed under the MIT license
 Copyright (c) 2012 Jeff Rowberg
-
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
-
 The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
-
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -77,7 +74,6 @@ MPU6050 mpu;
    The solution requires a modification to the Arduino USBAPI.h file, which
    is fortunately simple, but annoying. This will be fixed in the next IDE
    release. For more info, see these links:
-
    http://arduino.cc/forum/index.php/topic,109987.0.html
    http://code.google.com/p/arduino/issues/detail?id=958
  * ========================================================================= */
@@ -399,9 +395,9 @@ float calc_pid(unsigned long currentTime, unsigned long lastHitTime)
     de = error - error_prev;
     dt = currentTime - lastHitTime;
 
-    angle = kp*error + kd*de/dt + ki*error*dt;d
+    angle = kp*error + kd*de/dt + ki*error*dt;
     pre_servo_degree = target_degree;
-    error_prev = error;
+    error_prev = error; 
 
     return angle; //최종적으로 돌아가야되는 서보모터 각도
 }
@@ -409,7 +405,7 @@ float calc_pid(unsigned long currentTime, unsigned long lastHitTime)
 float calc_degree()
 {
     float degree;
-    degree = g * b * sin(pi) / (v * v) * (1 - pow(e, h * m * v * t / D));
+    degree = g * b * sin(pi) / (v * v) * (1 - pow(e, h * v / D));
 
     return degree;
 }
