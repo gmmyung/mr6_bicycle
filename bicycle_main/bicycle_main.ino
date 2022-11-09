@@ -398,7 +398,7 @@ float calc_pid(currentTime, lastHitTime)
     de = error - error_prev;
     dt = currentTime - lastHitTime;
 
-    angle = kp*error + kd*de/dt + ki*error*dt;
+    angle = kp*error + kd*de/dt + ki*error*dt;d
     pre_servo_degree = target_degree;
     error_prev = error;
 
