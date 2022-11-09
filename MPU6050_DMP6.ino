@@ -145,7 +145,20 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 // packet structure for InvenSense teapot demo
 uint8_t teapotPacket[14] = { '$', 0x02, 0,0, 0,0, 0,0, 0,0, 0x00, 0x00, '\r', '\n' };
 
-
+//초기값설정
+#define kp = 0.3
+#define ki = 0.2
+#define kd = 0.4
+#define e = 2.71828;
+float error_prev = 0;
+float pre_servo_degree = 0;
+float mass; //자전거의 질량
+float g = 9.8; //중력가속도
+float b; //바퀴사이의 거리
+float h; //무게중심 높이
+float v; //자전거의 속도
+float D; //자전거의 관성모멘트
+float pi; //자전거 기울어진 각도
 
 // ================================================================
 // ===               INTERRUPT DETECTION ROUTINE                ===
@@ -367,6 +380,35 @@ void counting()
   unsigned long currentTime = micros();
   // Serial.println(currentTime - lastHitTime);
   currentVel = 1 / 20.0 / (((float)(currentTime - lastHitTime) / 1000000) / 60);
+  calc_pid(currentTime, lastHitTime)
   lastHitTime = currentTime;
   velMovAvg.addValue(currentVel);
+}
+
+float calc_pid(currentTime, lastHitTime)
+{
+    float target_degree;
+    float error;
+    float de;
+    float dt;
+    float angle;
+
+    target_degree = calc_degree();
+    error = target_degree - pre_servo_degree;
+    de = error - error_prev;
+    dt = currentTime - lastHitTime;
+
+    angle = kp*error + kd*de/dt + ki*error*dt;
+    pre_servo_degree = target_degree;
+    error_prev = error;
+
+    return angle //최종적으로 돌아가야되는 서보모터 각도
+}
+
+float calc_degree()
+{
+    float degree;
+    degree = g*b*sin(pi)/(v*v)*(1-pow(e, h*m*v*t/D));
+
+    return degree;
 }
