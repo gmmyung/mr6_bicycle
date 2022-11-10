@@ -6,6 +6,7 @@
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
 // is used in I2Cdev.h
 #include <RunningAverage.h>
+#include <Servo.h>
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
 #include "Wire.h"
 #endif
@@ -82,9 +83,6 @@ volatile float currentVel = 0.0;
 volatile unsigned long lastHitTime;
 
 RunningAverage velMovAvg(20);
-
-#include <Servo.h>
-
 Servo steeringServo;
 
 // ================================================================
@@ -214,8 +212,9 @@ void loop()
         //Serial.print("\t");
         //Serial.println(ypr[2] * 180 / M_PI);
 
-        Serial.println(calc_pid(data[1], ypr[1], 0));
-
+        //Serial.println(calc_pid(data[1], ypr[1], 0));
+        Serial.println(ypr[1]*180/M_PI);
+        
         steeringServo.write(ypr[1] * 180 / M_PI);
 
         blinkState = !blinkState;
