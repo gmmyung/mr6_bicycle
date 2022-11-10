@@ -9,7 +9,7 @@ from queue import Queue
 
 line = [] #라인 단위로 데이터 가져올 리스트 변수
 
-port = 'COM5' # 시리얼 포트
+port = 'COM6' # 시리얼 포트
 baud = 38400 # 시리얼 보드레이트(통신속도)
 
 exitThread = False   # 쓰레드 종료용 변수

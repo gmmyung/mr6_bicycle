@@ -38,9 +38,9 @@ MPU6050 mpu;
 #define INTERRUPT_PIN 2 // use pin 2 on Arduino Uno & most boards
 #define LED_PIN 13      // (Arduino is 13, Teensy is 11, Teensy++ is 6)
 
-#define kp 0.3
-#define ki 0.0
-#define kd 0.0
+#define kp 100
+#define ki 0.0000000001
+#define kd 0.000001
 #define e 2.71828
 #define g 9.8          //중력가속도
 #define b 1.0          //바퀴사이의 거리
@@ -174,6 +174,17 @@ void setup()
 
     // configure LED for output
     pinMode(LED_PIN, OUTPUT);
+    Serial.println("initialized");
+    steeringServo.write(90);
+    steeringServo.write(0);
+
+    Serial.println("test");
+    steeringServo.write(5);
+    delay(1000);
+    steeringServo.write(10);
+    delay(1000);
+    steeringServo.write(5);
+
 }
 
 // ================================================================
@@ -189,9 +200,9 @@ void loop()
     if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
     { // Get the Latest packet
 
-        Serial.print("currentVel ");
-        Serial.print(velMovAvg.getAverage());
-        Serial.print(" ");
+        //Serial.print("currentVel ");
+        //Serial.print(velMovAvg.getAverage());
+        //Serial.print(" ");
 
         mpu.dmpGetGyro(data, fifoBuffer);
         //Serial.print(data[0]);
@@ -213,9 +224,12 @@ void loop()
         //Serial.println(ypr[2] * 180 / M_PI);
 
         //Serial.println(calc_pid(data[1], ypr[1], 0));
-        Serial.println(ypr[1]*180/M_PI);
-        
-        steeringServo.write(ypr[1] * 180 / M_PI);
+        //Serial.println(ypr[1]*180/M_PI);
+
+        Serial.print(" ");
+        steeringServo.write(calc_pid(data[1], ypr[1], 0) + 90);
+        //steeringServo.write(ypr[1]*180/M_PI + 90);
+        //Serial.println(calc_pid(data[1], ypr[1], 0) + 90);
 
         blinkState = !blinkState;
         digitalWrite(LED_PIN, blinkState);
@@ -235,7 +249,7 @@ float calc_pid(int32_t gyroX, float roll, float target)
 {
     static unsigned long lastTime = 0;
     unsigned long currentTime;
-
+    static long error_sum = 0;
     float target_degree;
     float error;
     float de;
@@ -244,11 +258,18 @@ float calc_pid(int32_t gyroX, float roll, float target)
 
     currentTime = millis();
     error = target - roll;
-    de = gyroX;
     dt = currentTime - lastTime;
+    error_sum += error * dt;
 
-    angle = kp * error + kd * de / dt + ki * error * dt;
-
+    angle = kp * error + kd * gyroX + ki * error_sum;
+    Serial.print(kp * error);
+    Serial.print(" ");
+    Serial.print(kd * gyroX);
+    Serial.print(" ");
+    Serial.print(ki * error_sum);
+    Serial.print(" ");
+    Serial.println(angle);
+    //Serial.println(angle);
     return angle; //최종적으로 돌아가야되는 서보모터 각도
 }
 
@@ -256,6 +277,5 @@ float calc_degree()
 {
     float degree;
     degree = g * b * sin(fai) / (v * v) * (1 - pow(e, (h * v * m * t / D)));
-
     return degree;
 }
