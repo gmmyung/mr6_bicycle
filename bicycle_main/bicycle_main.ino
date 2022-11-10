@@ -41,6 +41,14 @@ MPU6050 mpu;
 #define ki 0.0
 #define kd 0.0
 #define e 2.71828
+#define g 9.8          //중력가속도
+#define b 1.0          //바퀴사이의 거리
+#define h 1.0          //무게중심 높이
+#define v 1.0          //자전거의 속도
+#define D 1.0          //자전거의 관성모멘트
+#define fai 1.0        //자전거의 기울어진 각도
+#define t 1.0          //시간?
+#define m 1.0          //자전거 질량
 
 bool blinkState = false;
 
@@ -58,17 +66,6 @@ VectorFloat gravity; // [x, y, z]            gravity vector
 int32_t data[3];
 float euler[3];      // [psi, theta, phi]    Euler angle container
 float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-
-
-float error_prev = 0;
-float pre_servo_degree = 0;
-float mass;    //자전거의 질량
-float g = 9.8; //중력가속도
-float b;       //바퀴사이의 거리
-float h;       //무게중심 높이
-float v;       //자전거의 속도
-float D;       //자전거의 관성모멘트
-float pi;      //자전거 기울어진 각도
 
 // ================================================================
 // ===               INTERRUPT DETECTION ROUTINE                ===
@@ -122,7 +119,6 @@ void setup()
     // the baud timing being too misaligned with processor ticks. You must use
     // 38400 or slower in these cases, or use some kind of external separate
     // crystal solution for the UART timer.
-
     // initialize device
     Serial.println(F("Initializing I2C devices..."));
     mpu.initialize();
@@ -260,7 +256,7 @@ float calc_pid(int32_t gyroX, float roll, float target)
 float calc_degree()
 {
     float degree;
-    degree = g * b * sin(pi) / (v * v) * (1 - pow(e, h * v / D));
+    degree = g * b * sin(fai) / (v * v) * (1 - pow(e, (h * v * m * t / D)));
 
     return degree;
 }
