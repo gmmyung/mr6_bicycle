@@ -174,16 +174,7 @@ void setup()
 
     // configure LED for output
     pinMode(LED_PIN, OUTPUT);
-    Serial.println("initialized");
     steeringServo.write(90);
-    steeringServo.write(0);
-
-    Serial.println("test");
-    steeringServo.write(5);
-    delay(1000);
-    steeringServo.write(10);
-    delay(1000);
-    steeringServo.write(5);
 
 }
 
