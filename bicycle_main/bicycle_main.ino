@@ -11,6 +11,8 @@
 #include "Wire.h"
 #endif
 
+#define serial_enable true
+
 // class default I2C address is 0x68
 // specific I2C addresses may be passed as a parameter here
 // AD0 low = 0x68 (default for SparkFun breakout and InvenSense evaluation board)
@@ -67,6 +69,7 @@ VectorFloat gravity; // [x, y, z]            gravity vector
 int32_t data[3];
 float euler[3];      // [psi, theta, phi]    Euler angle container
 float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+float angle;
 
 // ================================================================
 // ===               INTERRUPT DETECTION ROUTINE                ===
@@ -79,6 +82,9 @@ void dmpDataReady()
 }
 
 int photoPin = 3;
+int motor_direction1 = 7;
+int motor_direction2 = 8;
+int motor_speed = 6;
 volatile float currentVel = 0.0;
 volatile unsigned long lastHitTime;
 
@@ -93,6 +99,11 @@ void setup()
 {
     velMovAvg.clear();
     pinMode(photoPin, INPUT);
+    pinMode(motor_direction1, OUTPUT);
+    pinMode(motor_direction2, OUTPUT);
+    pinMode(motor_speed, OUTPUT);
+    digitalWrite(motor_direction1, HIGH);
+    digitalWrite(motor_direction2, LOW);
     attachInterrupt(1, counting, RISING);
 
     steeringServo.attach(9);
@@ -108,6 +119,7 @@ void setup()
     // initialize serial communication
     // (115200 chosen because it is required for Teapot Demo output, but it's
     // really up to you depending on your project)
+#if serial_enable == true
     Serial.begin(38400);
     while (!Serial)
         ; // wait for Leonardo enumeration, others continue immediately
@@ -119,17 +131,21 @@ void setup()
     // crystal solution for the UART timer.
     // initialize device
     Serial.println(F("Initializing I2C devices..."));
+#endif
     mpu.initialize();
     pinMode(INTERRUPT_PIN, INPUT);
 
     // verify connection
+#if serial_enable == true
     Serial.println(F("Testing device connections..."));
     Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
-
+    devStatus = mpu.dmpInitialize();
     // load and configure the DMP
     Serial.println(F("Initializing DMP..."));
+#else
+    mpu.testConnection();
     devStatus = mpu.dmpInitialize();
-
+#endif
     // supply your own gyro offsets here, scaled for min sensitivity
     mpu.setXGyroOffset(220);
     mpu.setYGyroOffset(76);
@@ -144,18 +160,18 @@ void setup()
         mpu.CalibrateGyro(6);
         mpu.PrintActiveOffsets();
         // turn on the DMP, now that it's ready
-        Serial.println(F("Enabling DMP..."));
+        //Serial.println(F("Enabling DMP..."));
         mpu.setDMPEnabled(true);
 
         // enable Arduino interrupt detection
-        Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-        Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
-        Serial.println(F(")..."));
+        //Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
+        //Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
+        //Serial.println(F(")..."));
         attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
 
         // set our DMP Ready flag so the main loop() function knows it's okay to use it
-        Serial.println(F("DMP ready! Waiting for first interrupt..."));
+        //Serial.println(F("DMP ready! Waiting for first interrupt..."));
         dmpReady = true;
 
         // get expected DMP packet size for later comparison
@@ -167,9 +183,9 @@ void setup()
         // 1 = initial memory load failed
         // 2 = DMP configuration updates failed
         // (if it's going to break, usually the code will be 1)
-        Serial.print(F("DMP Initialization failed (code "));
-        Serial.print(devStatus);
-        Serial.println(F(")"));
+        //Serial.print(F("DMP Initialization failed (code "));
+        //Serial.print(devStatus);
+        //Serial.println(F(")"));
     }
 
     // configure LED for output
@@ -183,54 +199,55 @@ void setup()
 // ================================================================
 
 void loop()
-{
+{   
+    Serial.print("loop ");
+    analogWrite(motor_speed, 255);
     // if programming failed, don't try to do anything
     if (!dmpReady)
         return;
     // read a packet from FIFO
     if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
     { // Get the Latest packet
-
-        //Serial.print("currentVel ");
-        //Serial.print(velMovAvg.getAverage());
-        //Serial.print(" ");
-
+#if serial_enable == true
+        Serial.print("currentVel ");
+        Serial.print(velMovAvg.getAverage());
+        Serial.print(" ");
+#else
+        velMovAvg.getAverage(); //get value anywhere
+#endif
         mpu.dmpGetGyro(data, fifoBuffer);
-        //Serial.print(data[0]);
-        //Serial.print(" ");
-        //Serial.print(data[1]);
-        //Serial.print(" ");
-        //Serial.print(data[2]);
-        //Serial.print(" ");
-
         // display Euler angles in degrees
         mpu.dmpGetQuaternion(&q, fifoBuffer);
         mpu.dmpGetGravity(&gravity, &q);
         mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-        //Serial.print("ypr\t");
-        //Serial.print(ypr[0] * 180 / M_PI);
-        //Serial.print("\t");
-        //Serial.print(ypr[1] * 180 / M_PI);
-        //Serial.print("\t");
-        //Serial.println(ypr[2] * 180 / M_PI);
+
+#if serial_enable == true
+        Serial.print("ypr\t");
+        Serial.print(ypr[0] * 180 / M_PI);
+        Serial.print("\t");
+        Serial.print(ypr[1] * 180 / M_PI);
+        Serial.print("\t");
+        Serial.println(ypr[2] * 180 / M_PI); // roll 2번
 
         //Serial.println(calc_pid(data[1], ypr[1], 0));
         //Serial.println(ypr[1]*180/M_PI);
 
-        Serial.print(" ");
-        steeringServo.write(calc_pid(data[1], ypr[1], 0) + 90);
-        //steeringServo.write(ypr[1]*180/M_PI + 90);
-        //Serial.println(calc_pid(data[1], ypr[1], 0) + 90);
+        //Serial.print(" ");
+#endif
+        angle = calc_pid(data[0], ypr[2], 0) + 90;
+        Serial.print(ypr[2] * 180 / M_PI + 90);
+        steeringServo.write(ypr[2] * 180 / M_PI + 90);
+        
 
         blinkState = !blinkState;
         digitalWrite(LED_PIN, blinkState);
     }
+    
 }
 
 void counting()
 {
     unsigned long currentTime = micros();
-    // Serial.println(currentTime - lastHitTime);
     currentVel = 1 / 20.0 / (((float)(currentTime - lastHitTime) / 1000000) / 60);
     lastHitTime = currentTime;
     velMovAvg.addValue(currentVel);
@@ -253,14 +270,15 @@ float calc_pid(int32_t gyroX, float roll, float target)
     error_sum += error * dt;
 
     angle = kp * error + kd * gyroX + ki * error_sum;
+#if serial_enable == true
     Serial.print(kp * error);
     Serial.print(" ");
     Serial.print(kd * gyroX);
     Serial.print(" ");
     Serial.print(ki * error_sum);
     Serial.print(" ");
-    Serial.println(angle);
-    //Serial.println(angle);
+    Serial.print(angle);
+#endif
     return angle; //최종적으로 돌아가야되는 서보모터 각도
 }
 
