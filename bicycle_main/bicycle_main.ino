@@ -73,8 +73,8 @@ uint8_t fifoBuffer[64]; // FIFO storage buffer
 Quaternion q;        // [w, x, y, z]         quaternion container
 VectorFloat gravity; // [x, y, z]            gravity vector
 int32_t data[3];
-float euler[3]; // [psi, theta, phi]    Euler angle container
-float ypr[3];   // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+float euler[3]; //[psi, theta, phi]    Euler angle container
+float ypr[3];   //[yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 float angle;
 void safeServo(float angle, Servo servo);
 
