@@ -57,7 +57,7 @@ MPU6050 mpu;
 
 static float kp = 3.0;
 static float ki = 0.1;
-static float kd  = 0.000000;
+static float kd  = 0.000000; //global variable
 
 bool blinkState = false;
 
