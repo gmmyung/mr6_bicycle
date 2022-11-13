@@ -147,7 +147,7 @@ void setup()
             if (Serial.readString().compareTo("go")){
                 go_next = true;
             }
-        }
+        }3
     }
     Serial.print("bt serial starts");
 
