@@ -11,7 +11,8 @@
 #include "Wire.h"
 #endif
 
-#define serial_enable true
+#define serial_enable false
+#define bt_serial_enable true
 #define yaw_I true
 
 // class default I2C address is 0x68
@@ -41,9 +42,6 @@ MPU6050 mpu;
 #define INTERRUPT_PIN 2 // use pin 2 on Arduino Uno & most boards
 #define LED_PIN 13      // (Arduino is 13, Teensy is 11, Teensy++ is 6)
 
-#define kp 3
-#define ki 0.1
-#define kd 0.000000
 #define e 2.71828
 #define g 9.8   //중력가속도
 #define b 1.0   //바퀴사이의 거리
@@ -53,6 +51,13 @@ MPU6050 mpu;
 #define fai 1.0 //자전거의 기울어진 각도
 #define t 1.0   //시간?
 #define m 1.0   //자전거 질량
+
+#define btRX 0
+#define btTX 1
+
+static float kp = 3.0;
+static float ki = 0.1;
+static float kd  = 0.000000;
 
 bool blinkState = false;
 
@@ -134,11 +139,25 @@ void setup()
     // initialize device
     Serial.println(F("Initializing I2C devices..."));
 #endif
+#if bt_serial_enable == true
+    Serial.begin(9600);
+    bool go_next;
+    while (!go_next) {
+        if (Serial.available()) {
+            if (Serial.readString().compareTo("go")){
+                go_next = true;
+            }
+        }
+    }
+    Serial.print("bt serial starts");
+
+#endif
     mpu.initialize();
     pinMode(INTERRUPT_PIN, INPUT);
 
     // verify connection
-#if serial_enable == true
+
+#if serial_enable == true || bt_serial_enable == true
     Serial.println(F("Testing device connections..."));
     Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
     devStatus = mpu.dmpInitialize();
@@ -148,6 +167,7 @@ void setup()
     mpu.testConnection();
     devStatus = mpu.dmpInitialize();
 #endif
+
     // supply your own gyro offsets here, scaled for min sensitivity
     mpu.setXGyroOffset(220);
     mpu.setYGyroOffset(76);
@@ -209,7 +229,7 @@ void loop()
     // read a packet from FIFO
     if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
     { // Get the Latest packet
-#if serial_enable == true
+#if serial_enable == true || bt_serial_enable == true
         Serial.print("currentVel ");
         Serial.print(velMovAvg.getAverage());
         Serial.print(" ");
@@ -222,7 +242,7 @@ void loop()
         mpu.dmpGetGravity(&gravity, &q);
         mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
-#if serial_enable == true
+#if serial_enable == true || bt_serial_enable == true
         Serial.print("ypr\t");
         Serial.print(ypr[0] * 180 / M_PI);
         Serial.print("\t");
@@ -240,6 +260,19 @@ void loop()
 
         blinkState = !blinkState;
         digitalWrite(LED_PIN, blinkState);
+
+#if bt_serial_enable == true
+    if ((Serial.available())) { //string 
+        if (Serial.readStringUntil('\n').compareTo("change")) {
+            for (int i = 0; i < 3; i++) {
+                kd = Serial.readStringUntil('\n').toFloat();
+                kp = Serial.readStringUntil('\n').toFloat();
+                ki = Serial.readStringUntil('\n').toFloat();
+            }
+        }
+    }
+#endif
+
     }
 }
 
@@ -292,7 +325,7 @@ float calc_pid(int32_t gyroX, float yaw, float roll, float target)
     error_sum = yaw;
 #endif
     angle = kp * error + kd * gyroX + ki * error_sum;
-#if serial_enable == true
+#if serial_enable == true || bt_serial_enable == true
     Serial.print(" kp: ");
     Serial.print(kp * error);
     Serial.print(" kd: ");
