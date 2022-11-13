@@ -1,6 +1,7 @@
 {
+    "sketch": "bicycle_main/bicycle_main.ino",
     "configuration": "cpu=atmega328old",
     "board": "arduino:avr:nano",
-    "programmer": "arduino:avrispmkii",
-    "sketch": "MPU6050_DMP6.ino"
+    "port": "/dev/tty.usbserial-A50285BI",
+    "programmer": "avrispmkii"
 }

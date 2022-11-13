@@ -12,6 +12,7 @@
 #endif
 
 #define serial_enable true
+#define yaw_I true
 
 // class default I2C address is 0x68
 // specific I2C addresses may be passed as a parameter here
@@ -40,18 +41,18 @@ MPU6050 mpu;
 #define INTERRUPT_PIN 2 // use pin 2 on Arduino Uno & most boards
 #define LED_PIN 13      // (Arduino is 13, Teensy is 11, Teensy++ is 6)
 
-#define kp 100
-#define ki 0.0000000001
-#define kd 0.000001
+#define kp 3
+#define ki 0.1
+#define kd 0.000000
 #define e 2.71828
-#define g 9.8          //중력가속도
-#define b 1.0          //바퀴사이의 거리
-#define h 1.0          //무게중심 높이
-#define v 1.0          //자전거의 속도
-#define D 1.0          //자전거의 관성모멘트
-#define fai 1.0        //자전거의 기울어진 각도
-#define t 1.0          //시간?
-#define m 1.0          //자전거 질량
+#define g 9.8   //중력가속도
+#define b 1.0   //바퀴사이의 거리
+#define h 1.0   //무게중심 높이
+#define v 1.0   //자전거의 속도
+#define D 1.0   //자전거의 관성모멘트
+#define fai 1.0 //자전거의 기울어진 각도
+#define t 1.0   //시간?
+#define m 1.0   //자전거 질량
 
 bool blinkState = false;
 
@@ -67,9 +68,10 @@ uint8_t fifoBuffer[64]; // FIFO storage buffer
 Quaternion q;        // [w, x, y, z]         quaternion container
 VectorFloat gravity; // [x, y, z]            gravity vector
 int32_t data[3];
-float euler[3];      // [psi, theta, phi]    Euler angle container
-float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+float euler[3]; // [psi, theta, phi]    Euler angle container
+float ypr[3];   // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 float angle;
+void safeServo(float angle, Servo servo);
 
 // ================================================================
 // ===               INTERRUPT DETECTION ROUTINE                ===
@@ -102,8 +104,8 @@ void setup()
     pinMode(motor_direction1, OUTPUT);
     pinMode(motor_direction2, OUTPUT);
     pinMode(motor_speed, OUTPUT);
-    digitalWrite(motor_direction1, HIGH);
-    digitalWrite(motor_direction2, LOW);
+    digitalWrite(motor_direction1, LOW);
+    digitalWrite(motor_direction2, HIGH);
     attachInterrupt(1, counting, RISING);
 
     steeringServo.attach(9);
@@ -120,7 +122,7 @@ void setup()
     // (115200 chosen because it is required for Teapot Demo output, but it's
     // really up to you depending on your project)
 #if serial_enable == true
-    Serial.begin(38400);
+    Serial.begin(57600);
     while (!Serial)
         ; // wait for Leonardo enumeration, others continue immediately
 
@@ -160,18 +162,18 @@ void setup()
         mpu.CalibrateGyro(6);
         mpu.PrintActiveOffsets();
         // turn on the DMP, now that it's ready
-        //Serial.println(F("Enabling DMP..."));
+        Serial.println(F("Enabling DMP..."));
         mpu.setDMPEnabled(true);
 
         // enable Arduino interrupt detection
-        //Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-        //Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
-        //Serial.println(F(")..."));
+        Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
+        Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
+        Serial.println(F(")..."));
         attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
 
         // set our DMP Ready flag so the main loop() function knows it's okay to use it
-        //Serial.println(F("DMP ready! Waiting for first interrupt..."));
+        Serial.println(F("DMP ready! Waiting for first interrupt..."));
         dmpReady = true;
 
         // get expected DMP packet size for later comparison
@@ -183,15 +185,14 @@ void setup()
         // 1 = initial memory load failed
         // 2 = DMP configuration updates failed
         // (if it's going to break, usually the code will be 1)
-        //Serial.print(F("DMP Initialization failed (code "));
-        //Serial.print(devStatus);
-        //Serial.println(F(")"));
+        Serial.print(F("DMP Initialization failed (code "));
+        Serial.print(devStatus);
+        Serial.println(F(")"));
     }
 
     // configure LED for output
     pinMode(LED_PIN, OUTPUT);
     steeringServo.write(90);
-
 }
 
 // ================================================================
@@ -199,9 +200,9 @@ void setup()
 // ================================================================
 
 void loop()
-{   
+{
     Serial.print("loop ");
-    analogWrite(motor_speed, 255);
+    analogWrite(motor_speed, 230);
     // if programming failed, don't try to do anything
     if (!dmpReady)
         return;
@@ -213,7 +214,7 @@ void loop()
         Serial.print(velMovAvg.getAverage());
         Serial.print(" ");
 #else
-        velMovAvg.getAverage(); //get value anywhere
+        velMovAvg.getAverage(); // get value anywhere
 #endif
         mpu.dmpGetGyro(data, fifoBuffer);
         // display Euler angles in degrees
@@ -227,22 +228,37 @@ void loop()
         Serial.print("\t");
         Serial.print(ypr[1] * 180 / M_PI);
         Serial.print("\t");
-        Serial.println(ypr[2] * 180 / M_PI); // roll 2번
-
-        //Serial.println(calc_pid(data[1], ypr[1], 0));
-        //Serial.println(ypr[1]*180/M_PI);
-
-        //Serial.print(" ");
+        Serial.print(ypr[2] * 180 / M_PI); // roll 2번
 #endif
-        angle = calc_pid(data[0], ypr[2], 0) + 90;
-        Serial.print(ypr[2] * 180 / M_PI + 90);
-        steeringServo.write(ypr[2] * 180 / M_PI + 90);
-        
+        Serial.print("data\t");
+        Serial.print(data[0]);
+        Serial.print("\t");
+        Serial.print(data[1]);
+        Serial.print("\t");
+        Serial.print(data[2]); // roll 2번
+        safeServo(calc_pid(data[0], ypr[0]* 180 / M_PI, ypr[2] * 180 / M_PI, 0), steeringServo);
 
         blinkState = !blinkState;
         digitalWrite(LED_PIN, blinkState);
     }
-    
+}
+
+void safeServo(float angle, Servo servo)
+{
+    const int safe_min = 60;
+    const int safe_max = 130;
+    if (safe_min > angle + 90)
+    {
+        servo.write(safe_min);
+    }
+    else if (safe_max < angle + 90)
+    {
+        servo.write(safe_max);
+    }
+    else
+    {
+        servo.write(angle + 90);
+    }
 }
 
 void counting()
@@ -253,9 +269,10 @@ void counting()
     velMovAvg.addValue(currentVel);
 }
 
-float calc_pid(int32_t gyroX, float roll, float target)
+float calc_pid(int32_t gyroX, float yaw, float roll, float target)
 {
     static unsigned long lastTime = 0;
+    const float maxInteg = 5;
     unsigned long currentTime;
     static long error_sum = 0;
     float target_degree;
@@ -266,18 +283,24 @@ float calc_pid(int32_t gyroX, float roll, float target)
 
     currentTime = millis();
     error = target - roll;
+#if yaw_I == false
     dt = currentTime - lastTime;
     error_sum += error * dt;
-
+    error_sum = min(maxInteg / ki, error_sum);
+    error_sum = max(-maxInteg / ki, error_sum);
+#else
+    error_sum = yaw;
+#endif
     angle = kp * error + kd * gyroX + ki * error_sum;
 #if serial_enable == true
+    Serial.print(" kp: ");
     Serial.print(kp * error);
-    Serial.print(" ");
+    Serial.print(" kd: ");
     Serial.print(kd * gyroX);
-    Serial.print(" ");
+    Serial.print(" ki: ");
     Serial.print(ki * error_sum);
-    Serial.print(" ");
-    Serial.print(angle);
+    Serial.print(" angle: ");
+    Serial.println(angle);
 #endif
     return angle; //최종적으로 돌아가야되는 서보모터 각도
 }
