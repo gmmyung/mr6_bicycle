@@ -57,9 +57,13 @@ MPU6050 mpu;
 #define BTRX 0
 #define BTTX 1
 
+/* data 참고
 static float kp = 3.0;
 static float ki = 0.1;
 static float kd  = 0.000000;
+*/
+
+float ks[3] = {0.0, 0.0, 0.0}; //kp, ki, kd
 
 bool blinkState = false;
 
@@ -106,6 +110,7 @@ Servo steeringServo;
 
 void setup()
 {
+    steeringServo.write(90);
     velMovAvg.clear();
     pinMode(photoPin, INPUT);
     
@@ -113,10 +118,10 @@ void setup()
     pinMode(motor_direction2, OUTPUT);
     pinMode(motor_speed, OUTPUT);
     
-    digitalWrite(motor_direction1, LOW);
-    digitalWrite(motor_direction2, HIGH);
+    digitalWrite(motor_direction1, HIGH);
+    digitalWrite(motor_direction2, LOW);
 
-    attachInterrupt(digitalPinToInterrupt(ENCODER_INTERRUPT_PIN), counting, RISING);
+    //attachInterrupt(digitalPinToInterrupt(ENCODER_INTERRUPT_PIN), counting, RISING);
     
     steeringServo.attach(9);
 
@@ -133,6 +138,7 @@ void setup()
     // really up to you depending on your project)
 #if SERIAL_ENABLE == true
     Serial.begin(9600);
+    Serial.println("serial connected");
     while (!Serial)
         ; // wait for Leonardo enumeration, others continue immediately
 
@@ -146,11 +152,27 @@ void setup()
     bool go_next = false;
     while (!go_next) {
         if (Serial.available()) {
-            if (Serial.readString().compareTo("go")){
+            String d = Serial.readStringUntil('\n');
+            Serial.println(d);
+            if (d.equals("go")){
                 go_next = true;
             }
         }
     }
+    Serial.println("input k values");
+    for(int i = 0; i < 3; i++) {
+        while (!Serial.available()) {
+        ;
+        }
+        ks[i] = Serial.readStringUntil('\n').toFloat();
+    }
+
+    Serial.print("kp: ");
+    Serial.print(ks[0]);
+    Serial.print(", ki: ");
+    Serial.print(ks[1]);
+    Serial.print(", kd: ");
+    Serial.println(ks[2]);
 
     Serial.println(F("Initializing I2C devices..."));
 #endif
@@ -201,6 +223,8 @@ void setup()
 
         // get expected DMP packet size for later comparison
         packetSize = mpu.dmpGetFIFOPacketSize();
+        
+        Serial.println(-2);
     }
     else
     {
@@ -215,7 +239,6 @@ void setup()
 
     // configure LED for output
     pinMode(LED_PIN, OUTPUT);
-    steeringServo.write(90);
 }
 
 // ================================================================
@@ -224,27 +247,36 @@ void setup()
 
 void loop()
 {
+    Serial.println(-1);
     analogWrite(motor_speed, 230);
+    Serial.println(0);
     // if programming failed, don't try to do anything
     if (!dmpReady)
+        Serial.println(1);
         return;
     // read a packet from FIFO
     if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
-    { // Get the Latest packet
-#if SERIAL_ENABLE == true
+    { // Get the Latest packete
+        Serial.println(2);
+#if SERIAL_ENABLE != true
         Serial.print("currentVel ");
         Serial.print(velMovAvg.getAverage());
         Serial.print(" ");
 #else
-        velMovAvg.getAverage(); // get value anyway
+        Serial.println(3);
+        //velMovAvg.getAverage(); // get value anyway
 #endif
+        Serial.println(4);
         mpu.dmpGetGyro(data, fifoBuffer);
         // display Euler angles in degrees
+        Serial.println(5);
         mpu.dmpGetQuaternion(&q, fifoBuffer);
+        Serial.println(6);
         mpu.dmpGetGravity(&gravity, &q);
+        Serial.println(7);
         mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
-#if SERIAL_ENABLE == true
+#if SERIAL_ENABLE != true
         Serial.print("ypr\t");
         Serial.print(ypr[0] * 180 / M_PI);
         Serial.print("\t");
@@ -259,16 +291,22 @@ void loop()
         Serial.print("\t");
         Serial.print(data[2]); // roll 2번
 #endif
+        Serial.println(8);
         safeServo(calc_pid(data[0], ypr[0]* 180 / M_PI, ypr[2] * 180 / M_PI, 0), steeringServo);
-
-        blinkState = !blinkState;
+        
+        Serial.println(9);
+        blinkState = (millis() / 1000) % 2;
+        Serial.println(millis() / 1000.0);
         digitalWrite(LED_PIN, blinkState);
 
+/*
 #if SERIAL_ENABLE == true //could make very small block 
     if ((Serial.available())) {
+        Serial.println();
+        Serial.println(Serial.readStringUntil('\n'));
     }
 #endif
-
+*/
     }
 }
 
@@ -309,6 +347,12 @@ float calc_pid(int32_t gyroX, float yaw, float roll, float target)
     float de;
     float dt;
     float angle;
+    float kp, kd, ki;
+
+    kp = ks[0];
+    ki = ks[1];
+    kd = ks[2];
+
 
     currentTime = millis();
     error = target - roll;
@@ -321,7 +365,7 @@ float calc_pid(int32_t gyroX, float yaw, float roll, float target)
     error_sum = yaw;
 #endif
     angle = kp * error + kd * gyroX + ki * error_sum;
-#if SERIAL_ENABLE == true
+#if SERIAL_ENABLE != true
     Serial.print(" kp: ");
     Serial.print(kp * error);
     Serial.print(" kd: ");
