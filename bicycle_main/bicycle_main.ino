@@ -11,8 +11,7 @@
 #include "Wire.h"
 #endif
 
-#define serial_enable true
-#define bt_serial_enable false
+#define SERIAL_ENABLE true
 #define yaw_I true
 
 // class default I2C address is 0x68
@@ -39,7 +38,8 @@ MPU6050 mpu;
    http://code.google.com/p/arduino/issues/detail?id=958
  * ========================================================================= */
 
-#define INTERRUPT_PIN 2 // use pin 2 on Arduino Uno & most boards
+#define MPU_INTERRUPT_PIN 2 // use pin 2 on Arduino Uno & most boards
+#define ENCODER_INTERRUPT_PIN 3
 #define LED_PIN 13      // (Arduino is 13, Teensy is 11, Teensy++ is 6)
 
 #define e 2.71828
@@ -52,12 +52,14 @@ MPU6050 mpu;
 #define t 1.0   //시간?
 #define m 1.0   //자전거 질량
 
-#define btRX 0
-#define btTX 1
+#define SAFE_SERVO_RANGE 30
+
+#define BTRX 0
+#define BTTX 1
 
 static float kp = 3.0;
 static float ki = 0.1;
-static float kd  = 0.000000; //global variable
+static float kd  = 0.000000;
 
 bool blinkState = false;
 
@@ -106,13 +108,16 @@ void setup()
 {
     velMovAvg.clear();
     pinMode(photoPin, INPUT);
+    
     pinMode(motor_direction1, OUTPUT);
     pinMode(motor_direction2, OUTPUT);
     pinMode(motor_speed, OUTPUT);
+    
     digitalWrite(motor_direction1, LOW);
     digitalWrite(motor_direction2, HIGH);
-    attachInterrupt(1, counting, RISING);
 
+    attachInterrupt(digitalPinToInterrupt(ENCODER_INTERRUPT_PIN), counting, RISING);
+    
     steeringServo.attach(9);
 
 // join I2C bus (I2Cdev library doesn't do this automatically)
@@ -126,8 +131,8 @@ void setup()
     // initialize serial communication
     // (115200 chosen because it is required for Teapot Demo output, but it's
     // really up to you depending on your project)
-#if serial_enable == true
-    Serial.begin(57600);
+#if SERIAL_ENABLE == true
+    Serial.begin(9600);
     while (!Serial)
         ; // wait for Leonardo enumeration, others continue immediately
 
@@ -137,11 +142,8 @@ void setup()
     // 38400 or slower in these cases, or use some kind of external separate
     // crystal solution for the UART timer.
     // initialize device
-    Serial.println(F("Initializing I2C devices..."));
-#endif
-#if bt_serial_enable == true
-    Serial.begin(9600);
-    bool go_next;
+
+    bool go_next = false;
     while (!go_next) {
         if (Serial.available()) {
             if (Serial.readString().compareTo("go")){
@@ -149,15 +151,16 @@ void setup()
             }
         }
     }
-    Serial.print("bt serial starts");
 
+    Serial.println(F("Initializing I2C devices..."));
 #endif
+
     mpu.initialize();
-    pinMode(INTERRUPT_PIN, INPUT);
+    pinMode(MPU_INTERRUPT_PIN, INPUT);
 
     // verify connection
 
-#if serial_enable == true || bt_serial_enable == true
+#if SERIAL_ENABLE == true
     Serial.println(F("Testing device connections..."));
     Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
     devStatus = mpu.dmpInitialize();
@@ -187,9 +190,9 @@ void setup()
 
         // enable Arduino interrupt detection
         Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-        Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
+        Serial.print(digitalPinToInterrupt(MPU_INTERRUPT_PIN));
         Serial.println(F(")..."));
-        attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
+        attachInterrupt(digitalPinToInterrupt(MPU_INTERRUPT_PIN), dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
 
         // set our DMP Ready flag so the main loop() function knows it's okay to use it
@@ -228,12 +231,12 @@ void loop()
     // read a packet from FIFO
     if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
     { // Get the Latest packet
-#if serial_enable == true || bt_serial_enable == true
+#if SERIAL_ENABLE == true
         Serial.print("currentVel ");
         Serial.print(velMovAvg.getAverage());
         Serial.print(" ");
 #else
-        velMovAvg.getAverage(); // get value anywhere
+        velMovAvg.getAverage(); // get value anyway
 #endif
         mpu.dmpGetGyro(data, fifoBuffer);
         // display Euler angles in degrees
@@ -241,34 +244,28 @@ void loop()
         mpu.dmpGetGravity(&gravity, &q);
         mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
-#if serial_enable == true || bt_serial_enable == true
+#if SERIAL_ENABLE == true
         Serial.print("ypr\t");
         Serial.print(ypr[0] * 180 / M_PI);
         Serial.print("\t");
         Serial.print(ypr[1] * 180 / M_PI);
         Serial.print("\t");
         Serial.print(ypr[2] * 180 / M_PI); // roll 2번
-#endif
+
         Serial.print("data\t");
         Serial.print(data[0]);
         Serial.print("\t");
         Serial.print(data[1]);
         Serial.print("\t");
         Serial.print(data[2]); // roll 2번
+#endif
         safeServo(calc_pid(data[0], ypr[0]* 180 / M_PI, ypr[2] * 180 / M_PI, 0), steeringServo);
 
         blinkState = !blinkState;
         digitalWrite(LED_PIN, blinkState);
 
-#if bt_serial_enable == true
-    if ((Serial.available())) { //string 
-        if (Serial.readStringUntil('\n').compareTo("change")) {
-            for (int i = 0; i < 3; i++) {
-                kd = Serial.readStringUntil('\n').toFloat();
-                kp = Serial.readStringUntil('\n').toFloat();
-                ki = Serial.readStringUntil('\n').toFloat();
-            }
-        }
+#if SERIAL_ENABLE == true //could make very small block 
+    if ((Serial.available())) {
     }
 #endif
 
@@ -277,8 +274,8 @@ void loop()
 
 void safeServo(float angle, Servo servo)
 {
-    const int safe_min = 60;
-    const int safe_max = 130;
+    const int safe_min = 90 - SAFE_SERVO_RANGE;
+    const int safe_max = 90 + SAFE_SERVO_RANGE;
     if (safe_min > angle + 90)
     {
         servo.write(safe_min);
@@ -324,7 +321,7 @@ float calc_pid(int32_t gyroX, float yaw, float roll, float target)
     error_sum = yaw;
 #endif
     angle = kp * error + kd * gyroX + ki * error_sum;
-#if serial_enable == true || bt_serial_enable == true
+#if SERIAL_ENABLE == true
     Serial.print(" kp: ");
     Serial.print(kp * error);
     Serial.print(" kd: ");
