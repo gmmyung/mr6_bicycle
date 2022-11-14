@@ -11,8 +11,8 @@
 #include "Wire.h"
 #endif
 
-#define serial_enable false
-#define bt_serial_enable true
+#define serial_enable true
+#define bt_serial_enable false
 #define yaw_I true
 
 // class default I2C address is 0x68
@@ -147,7 +147,7 @@ void setup()
             if (Serial.readString().compareTo("go")){
                 go_next = true;
             }
-        }3
+        }
     }
     Serial.print("bt serial starts");
 
@@ -221,7 +221,6 @@ void setup()
 
 void loop()
 {
-    Serial.print("loop ");
     analogWrite(motor_speed, 230);
     // if programming failed, don't try to do anything
     if (!dmpReady)
