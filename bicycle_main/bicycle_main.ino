@@ -11,7 +11,10 @@
 #include "Wire.h"
 #endif
 
-#define SERIAL_ENABLE true
+#define SERIAL_PRINT false
+#define PID_PRINT false
+
+
 #define yaw_I true
 
 // class default I2C address is 0x68
@@ -121,7 +124,7 @@ void setup()
     digitalWrite(motor_direction1, HIGH);
     digitalWrite(motor_direction2, LOW);
 
-    //attachInterrupt(digitalPinToInterrupt(ENCODER_INTERRUPT_PIN), counting, RISING);
+    attachInterrupt(digitalPinToInterrupt(ENCODER_INTERRUPT_PIN), counting, RISING);
     
     steeringServo.attach(9);
 
@@ -129,6 +132,7 @@ void setup()
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
     Wire.begin();
     Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
+    Wire.setWireTimeout(3000, true);
 #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
     Fastwire::setup(400, true);
 #endif
@@ -136,8 +140,7 @@ void setup()
     // initialize serial communication
     // (115200 chosen because it is required for Teapot Demo output, but it's
     // really up to you depending on your project)
-#if SERIAL_ENABLE == true
-    Serial.begin(115200);
+    Serial.begin(9600);
     Serial.println("serial connected");
     while (!Serial)
         ; // wait for Leonardo enumeration, others continue immediately
@@ -175,23 +178,17 @@ void setup()
     Serial.println(ks[2]);
 
     Serial.println(F("Initializing I2C devices..."));
-#endif
 
     mpu.initialize();
     pinMode(MPU_INTERRUPT_PIN, INPUT);
 
     // verify connection
 
-#if SERIAL_ENABLE == true
     Serial.println(F("Testing device connections..."));
     Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
     devStatus = mpu.dmpInitialize();
     // load and configure the DMP
     Serial.println(F("Initializing DMP..."));
-#else
-    mpu.testConnection();
-    devStatus = mpu.dmpInitialize();
-#endif
 
     // supply your own gyro offsets here, scaled for min sensitivity
     mpu.setXGyroOffset(220);
@@ -224,7 +221,6 @@ void setup()
         // get expected DMP packet size for later comparison
         packetSize = mpu.dmpGetFIFOPacketSize();
         
-        Serial.println(-2);
     }
     else
     {
@@ -247,35 +243,27 @@ void setup()
 
 void loop()
 {
-    Serial.println(-1);
-    //analogWrite(motor_speed, 230);
-    Serial.println(0);
+    //Serial.print(millis() / 1000.0);
+    analogWrite(motor_speed, 230);
     // if programming failed, don't try to do anything
     if (!dmpReady) return;
     // read a packet from FIFO
-    Serial.println(1);
     if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
     { // Get the Latest packete
-        Serial.println(2);
-#if SERIAL_ENABLE != true
+#if SERIAL_PRINT == true
         Serial.print("currentVel ");
         Serial.print(velMovAvg.getAverage());
         Serial.print(" ");
 #else
-        Serial.println(3);
-        //velMovAvg.getAverage(); // get value anyway
+        velMovAvg.getAverage(); // get value anyway
 #endif
-        Serial.println(4);
         mpu.dmpGetGyro(data, fifoBuffer);
         // display Euler angles in degrees
-        Serial.println(5);
         mpu.dmpGetQuaternion(&q, fifoBuffer);
-        Serial.println(6);
         mpu.dmpGetGravity(&gravity, &q);
-        Serial.println(7);
         mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
-#if SERIAL_ENABLE != true
+#if SERIAL_PRINT == true
         Serial.print("ypr\t");
         Serial.print(ypr[0] * 180 / M_PI);
         Serial.print("\t");
@@ -290,23 +278,12 @@ void loop()
         Serial.print("\t");
         Serial.print(data[2]); // roll 2번
 #endif
-        Serial.println(8);
         safeServo(calc_pid(data[0], ypr[0]* 180 / M_PI, ypr[2] * 180 / M_PI, 0), steeringServo);
         
-        Serial.println(9);
         blinkState = (millis() / 1000) % 2;
-        Serial.println(millis() / 1000.0);
         digitalWrite(LED_PIN, blinkState);
-
-/*
-#if SERIAL_ENABLE == true //could make very small block 
-    if ((Serial.available())) {
-        Serial.println();
-        Serial.println(Serial.readStringUntil('\n'));
     }
-#endif
-*/
-    }
+    //Serial.println(" |");
 }
 
 void safeServo(float angle, Servo servo)
@@ -352,7 +329,6 @@ float calc_pid(int32_t gyroX, float yaw, float roll, float target)
     ki = ks[1];
     kd = ks[2];
 
-
     currentTime = millis();
     error = target - roll;
 #if yaw_I == false
@@ -364,7 +340,7 @@ float calc_pid(int32_t gyroX, float yaw, float roll, float target)
     error_sum = yaw;
 #endif
     angle = kp * error + kd * gyroX + ki * error_sum;
-#if SERIAL_ENABLE != true
+#if PID_PRINT == true
     Serial.print(" kp: ");
     Serial.print(kp * error);
     Serial.print(" kd: ");
@@ -372,7 +348,7 @@ float calc_pid(int32_t gyroX, float yaw, float roll, float target)
     Serial.print(" ki: ");
     Serial.print(ki * error_sum);
     Serial.print(" angle: ");
-    Serial.println(angle);
+    Serial.print(angle);
 #endif
     return angle; //최종적으로 돌아가야되는 서보모터 각도
 }
