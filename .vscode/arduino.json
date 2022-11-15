@@ -1,6 +1,0 @@
-{
-    "sketch": "bicycle_main\\bicycle_main.ino",
-    "board": "arduino:avr:nano",
-    "port": "COM11",
-    "programmer": "arduino:avrisp"
-}
