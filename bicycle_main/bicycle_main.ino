@@ -55,7 +55,7 @@ MPU6050 mpu;
 #define t 1.0   //시간?
 #define m 1.0   //자전거 질량
 
-#define SAFE_SERVO_RANGE 30
+#define SAFE_SERVO_RANGE 45
 
 #define BTRX 0
 #define BTTX 1
@@ -87,6 +87,11 @@ float ypr[3];   //[yaw, pitch, roll]   yaw/pitch/roll container and gravity vect
 float angle;
 void safeServo(float angle, Servo servo);
 
+float init_servo_offset = 0.0;
+float servo_offset = 0.0;
+
+float motor_spd = 230;
+
 // ================================================================
 // ===               INTERRUPT DETECTION ROUTINE                ===
 // ================================================================
@@ -100,7 +105,7 @@ void dmpDataReady()
 int photoPin = 3;
 int motor_direction1 = 7;
 int motor_direction2 = 8;
-int motor_speed = 6;
+int motor_spd_pin = 6;
 volatile float currentVel = 0.0;
 volatile unsigned long lastHitTime;
 
@@ -113,13 +118,12 @@ Servo steeringServo;
 
 void setup()
 {
-    steeringServo.write(90);
     velMovAvg.clear();
     pinMode(photoPin, INPUT);
     
     pinMode(motor_direction1, OUTPUT);
     pinMode(motor_direction2, OUTPUT);
-    pinMode(motor_speed, OUTPUT);
+    pinMode(motor_spd_pin, OUTPUT);
     
     digitalWrite(motor_direction1, HIGH);
     digitalWrite(motor_direction2, LOW);
@@ -165,10 +169,15 @@ void setup()
     Serial.println("input k values");
     for(int i = 0; i < 3; i++) {
         while (!Serial.available()) {
-        ;
+            ;
         }
         ks[i] = Serial.readStringUntil('\n').toFloat();
     }
+    Serial.println("input servo offset");
+    while (!Serial.available()) {
+        ;
+    }
+    init_servo_offset = Serial.readStringUntil('\n').toFloat();
 
     Serial.print("kp: ");
     Serial.print(ks[0]);
@@ -235,6 +244,7 @@ void setup()
 
     // configure LED for output
     pinMode(LED_PIN, OUTPUT);
+    steeringServo.write(90);
 }
 
 // ================================================================
@@ -244,7 +254,7 @@ void setup()
 void loop()
 {
     //Serial.print(millis() / 1000.0);
-    analogWrite(motor_speed, 230);
+    analogWrite(motor_spd_pin, motor_spd);
     // if programming failed, don't try to do anything
     if (!dmpReady) return;
     // read a packet from FIFO
@@ -284,23 +294,50 @@ void loop()
         digitalWrite(LED_PIN, blinkState);
     }
     //Serial.println(" |");
+    if (Serial.available()) {
+        String data = Serial.readStringUntil('\n');
+        if (data.equals("l")) {
+            servo_offset -= 0.5;
+        }
+        else if (data.equals("r")) {
+            servo_offset += 0.5;
+        }
+        else if (data.equals("c")) {
+            servo_offset = init_servo_offset;
+        }
+        else if (data.equals("u")) {
+            motor_spd += 5;
+        }
+        else if (data.equals("d")) {
+            motor_spd -= 5;
+        }
+    }
+
+    if (motor_spd > 255) {
+        motor_spd = 255;
+    }
+    else if (motor_spd < 200) {
+        motor_spd = 200;
+    }
+
 }
 
 void safeServo(float angle, Servo servo)
 {
     const int safe_min = 90 - SAFE_SERVO_RANGE;
     const int safe_max = 90 + SAFE_SERVO_RANGE;
-    if (safe_min > angle + 90)
+    float real_angle = angle + 90 + servo_offset;
+    if (safe_min > real_angle)
     {
         servo.write(safe_min);
     }
-    else if (safe_max < angle + 90)
+    else if (safe_max < real_angle)
     {
         servo.write(safe_max);
     }
     else
     {
-        servo.write(angle + 90);
+        servo.write(real_angle);
     }
 }
 
