@@ -137,7 +137,7 @@ void setup()
     // (115200 chosen because it is required for Teapot Demo output, but it's
     // really up to you depending on your project)
 #if SERIAL_ENABLE == true
-    Serial.begin(9600);
+    Serial.begin(115200);
     Serial.println("serial connected");
     while (!Serial)
         ; // wait for Leonardo enumeration, others continue immediately
@@ -248,13 +248,12 @@ void setup()
 void loop()
 {
     Serial.println(-1);
-    analogWrite(motor_speed, 230);
+    //analogWrite(motor_speed, 230);
     Serial.println(0);
     // if programming failed, don't try to do anything
-    if (!dmpReady)
-        Serial.println(1);
-        return;
+    if (!dmpReady) return;
     // read a packet from FIFO
+    Serial.println(1);
     if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
     { // Get the Latest packete
         Serial.println(2);

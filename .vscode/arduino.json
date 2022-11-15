@@ -1,7 +1,6 @@
 {
-    "sketch": "bicycle_main/bicycle_main.ino",
-    "configuration": "cpu=atmega328old",
+    "sketch": "bicycle_main\\bicycle_main.ino",
     "board": "arduino:avr:nano",
-    "port": "/dev/tty.usbserial-A50285BI",
-    "programmer": "avrispmkii"
+    "port": "COM11",
+    "programmer": "arduino:avrisp"
 }
