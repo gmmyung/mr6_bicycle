@@ -88,6 +88,7 @@ void safeServo(float angle, Servo servo);
 
 float init_servo_offset = 0.0;
 float servo_offset = 0.0;
+float current_vel = 0.0;
 
 float motor_spd = 230;
 
@@ -289,6 +290,7 @@ void loop()
 {
     // Serial.print(millis() / 1000.0);
     analogWrite(motor_spd_pin, motor_spd);
+    counting();
     // if programming failed, don't try to do anything
     DebugPrint("currentVel ");
     DebugPrint(velMovAvg.getAverage());
@@ -339,6 +341,7 @@ void loop()
         {
             motor_spd -= 5;
         }
+        Serial.println(current_vel);
     }
 
     if (motor_spd > 255)
