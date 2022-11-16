@@ -11,11 +11,10 @@
 #include "Wire.h"
 #endif
 
-#define SERIAL_PRINT false
+#define SERIAL_PRINT true
 #define PID_PRINT false
 
-
-#define yaw_I true
+#define yaw_I false
 
 // class default I2C address is 0x68
 // specific I2C addresses may be passed as a parameter here
@@ -43,7 +42,7 @@ MPU6050 mpu;
 
 #define MPU_INTERRUPT_PIN 2 // use pin 2 on Arduino Uno & most boards
 #define ENCODER_INTERRUPT_PIN 3
-#define LED_PIN 13      // (Arduino is 13, Teensy is 11, Teensy++ is 6)
+#define LED_PIN 13 // (Arduino is 13, Teensy is 11, Teensy++ is 6)
 
 #define e 2.71828
 #define g 9.8   //중력가속도
@@ -66,7 +65,7 @@ static float ki = 0.1;
 static float kd  = 0.000000;
 */
 
-float ks[3] = {0.0, 0.0, 0.0}; //kp, ki, kd
+float ks[3] = {0.0, 0.0, 0.0}; // kp, ki, kd
 
 bool blinkState = false;
 
@@ -100,6 +99,9 @@ volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has g
 void dmpDataReady()
 {
     mpuInterrupt = true;
+    if (!dmpReady)
+        return;
+    mpu.dmpGetCurrentFIFOPacket(fifoBuffer);
 }
 
 int photoPin = 3;
@@ -120,16 +122,16 @@ void setup()
 {
     velMovAvg.clear();
     pinMode(photoPin, INPUT);
-    
+
     pinMode(motor_direction1, OUTPUT);
     pinMode(motor_direction2, OUTPUT);
     pinMode(motor_spd_pin, OUTPUT);
-    
+
     digitalWrite(motor_direction1, HIGH);
     digitalWrite(motor_direction2, LOW);
 
     attachInterrupt(digitalPinToInterrupt(ENCODER_INTERRUPT_PIN), counting, RISING);
-    
+
     steeringServo.attach(9);
 
 // join I2C bus (I2Cdev library doesn't do this automatically)
@@ -157,24 +159,30 @@ void setup()
     // initialize device
 
     bool go_next = false;
-    while (!go_next) {
-        if (Serial.available()) {
+    while (!go_next)
+    {
+        if (Serial.available())
+        {
             String d = Serial.readStringUntil('\n');
             Serial.println(d);
-            if (d.equals("go")){
+            if (d.equals("go"))
+            {
                 go_next = true;
             }
         }
     }
     Serial.println("input k values");
-    for(int i = 0; i < 3; i++) {
-        while (!Serial.available()) {
+    for (int i = 0; i < 3; i++)
+    {
+        while (!Serial.available())
+        {
             ;
         }
         ks[i] = Serial.readStringUntil('\n').toFloat();
     }
     Serial.println("input servo offset");
-    while (!Serial.available()) {
+    while (!Serial.available())
+    {
         ;
     }
     init_servo_offset = Serial.readStringUntil('\n').toFloat();
@@ -229,7 +237,6 @@ void setup()
 
         // get expected DMP packet size for later comparison
         packetSize = mpu.dmpGetFIFOPacketSize();
-        
     }
     else
     {
@@ -247,79 +254,101 @@ void setup()
     steeringServo.write(90);
 }
 
+void DebugPrint(const char* c)
+{
+#if SERIAL_PRINT == true
+    Serial.print(c);
+#endif
+}
+
+void DebugPrint(int i)
+{
+#if SERIAL_PRINT == true
+    Serial.print(i);
+#endif
+}
+
+void DebugPrint(float f)
+{
+#if SERIAL_PRINT == true
+    Serial.print(f);
+#endif
+}
+
+void DebugPrint(double f)
+{
+#if SERIAL_PRINT == true
+    Serial.print(f);
+#endif
+}
 // ================================================================
 // ===                    MAIN PROGRAM LOOP                     ===
 // ================================================================
 
 void loop()
 {
-    //Serial.print(millis() / 1000.0);
+    // Serial.print(millis() / 1000.0);
     analogWrite(motor_spd_pin, motor_spd);
     // if programming failed, don't try to do anything
-    if (!dmpReady) return;
-    // read a packet from FIFO
-    if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
-    { // Get the Latest packete
-#if SERIAL_PRINT == true
-        Serial.print("currentVel ");
-        Serial.print(velMovAvg.getAverage());
-        Serial.print(" ");
-#else
-        velMovAvg.getAverage(); // get value anyway
-#endif
-        mpu.dmpGetGyro(data, fifoBuffer);
-        // display Euler angles in degrees
-        mpu.dmpGetQuaternion(&q, fifoBuffer);
-        mpu.dmpGetGravity(&gravity, &q);
-        mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+    DebugPrint("currentVel ");
+    DebugPrint(velMovAvg.getAverage());
+    DebugPrint(" ");
+    mpu.dmpGetGyro(data, fifoBuffer);
+    // display Euler angles in degrees
+    mpu.dmpGetQuaternion(&q, fifoBuffer);
+    mpu.dmpGetGravity(&gravity, &q);
+    mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
-#if SERIAL_PRINT == true
-        Serial.print("ypr\t");
-        Serial.print(ypr[0] * 180 / M_PI);
-        Serial.print("\t");
-        Serial.print(ypr[1] * 180 / M_PI);
-        Serial.print("\t");
-        Serial.print(ypr[2] * 180 / M_PI); // roll 2번
+    DebugPrint("ypr\t");
+    DebugPrint(ypr[0] * 180 / M_PI);
+    DebugPrint("\t");
+    DebugPrint(ypr[1] * 180 / M_PI);
+    DebugPrint("\t");
+    DebugPrint(ypr[2] * 180 / M_PI); // roll 2번
 
-        Serial.print("data\t");
-        Serial.print(data[0]);
-        Serial.print("\t");
-        Serial.print(data[1]);
-        Serial.print("\t");
-        Serial.print(data[2]); // roll 2번
-#endif
-        safeServo(calc_pid(data[0], ypr[0]* 180 / M_PI, ypr[2] * 180 / M_PI, 0), steeringServo);
-        
-        blinkState = (millis() / 1000) % 2;
-        digitalWrite(LED_PIN, blinkState);
-    }
-    //Serial.println(" |");
-    if (Serial.available()) {
+    DebugPrint("data\t");
+    DebugPrint(data[0]);
+    DebugPrint("\t");
+    DebugPrint(data[1]);
+    DebugPrint("\t");
+    DebugPrint(data[2]); // roll 2번
+    safeServo(calc_pid(data[0], ypr[0] * 180 / M_PI, ypr[2] * 180 / M_PI, 0), steeringServo);
+
+    blinkState = (millis() / 1000) % 2;
+    digitalWrite(LED_PIN, blinkState);
+    if (Serial.available())
+    {
         String data = Serial.readStringUntil('\n');
-        if (data.equals("l")) {
+        if (data.equals("l"))
+        {
             servo_offset -= 0.5;
         }
-        else if (data.equals("r")) {
+        else if (data.equals("r"))
+        {
             servo_offset += 0.5;
         }
-        else if (data.equals("c")) {
+        else if (data.equals("c"))
+        {
             servo_offset = init_servo_offset;
         }
-        else if (data.equals("u")) {
+        else if (data.equals("u"))
+        {
             motor_spd += 5;
         }
-        else if (data.equals("d")) {
+        else if (data.equals("d"))
+        {
             motor_spd -= 5;
         }
     }
 
-    if (motor_spd > 255) {
+    if (motor_spd > 255)
+    {
         motor_spd = 255;
     }
-    else if (motor_spd < 200) {
+    else if (motor_spd < 200)
+    {
         motor_spd = 200;
     }
-
 }
 
 void safeServo(float angle, Servo servo)
@@ -352,7 +381,7 @@ void counting()
 float calc_pid(int32_t gyroX, float yaw, float roll, float target)
 {
     static unsigned long lastTime = 0;
-    const float maxInteg = 5;
+    const float maxInteg = 2;
     unsigned long currentTime;
     static long error_sum = 0;
     float target_degree;
@@ -377,16 +406,14 @@ float calc_pid(int32_t gyroX, float yaw, float roll, float target)
     error_sum = yaw;
 #endif
     angle = kp * error + kd * gyroX + ki * error_sum;
-#if PID_PRINT == true
-    Serial.print(" kp: ");
-    Serial.print(kp * error);
-    Serial.print(" kd: ");
-    Serial.print(kd * gyroX);
-    Serial.print(" ki: ");
-    Serial.print(ki * error_sum);
-    Serial.print(" angle: ");
-    Serial.print(angle);
-#endif
+    DebugPrint(" kp: ");
+    DebugPrint(kp * error);
+    DebugPrint(" kd: ");
+    DebugPrint(kd * gyroX);
+    DebugPrint(" ki: ");
+    DebugPrint(ki * error_sum);
+    DebugPrint(" angle: ");
+    DebugPrint(angle);
     return angle; //최종적으로 돌아가야되는 서보모터 각도
 }
 
