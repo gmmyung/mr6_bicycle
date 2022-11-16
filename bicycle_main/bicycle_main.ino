@@ -67,6 +67,7 @@ void safeServo(float angle, Servo servo);
 float init_servo_offset = 0.0;
 float servo_offset = 0.0;
 float current_vel = 0.0;
+float roll_target = 0.0;
 
 float motor_spd = 230;
 
@@ -143,7 +144,7 @@ void setup()
         }
         ks[i] = Serial.readStringUntil('\n').toFloat();
     }
-    Serial.println("input servo offset");
+    Serial.println("input roll offset");
     while (!Serial.available())
     {
         ;
@@ -240,7 +241,7 @@ void DebugPrint(int32_t i)
 }
 void DebugPrint(float f)
 {
-#if SERIAL_PRINT == true
+#if SERIAL_PRINT == true        
     Serial.print(f);
 #endif
 }
@@ -288,7 +289,7 @@ void loop()
     // DebugPrint(data[1]);
     // DebugPrint("\t");
     // DebugPrint(data[2]); // roll 2번
-    safeServo(calc_pid(data[0], ypr[0] * 180 / M_PI, ypr[2] * 180 / M_PI, 0), steeringServo);
+    safeServo(calc_pid(data[0], ypr[0] * 180 / M_PI, ypr[2] * 180 / M_PI, roll_target), steeringServo);
 
     blinkState = (millis() / 1000) % 2;
     digitalWrite(LED_PIN, blinkState);
@@ -297,15 +298,15 @@ void loop()
         String data = Serial.readStringUntil('\n');
         if (data.equals("l"))
         {
-            servo_offset -= 0.5;
+            roll_target += 0.5;
         }
         else if (data.equals("r"))
         {
-            servo_offset += 0.5;
+            roll_target -= 0.5;
         }
         else if (data.equals("c"))
         {
-            servo_offset = init_servo_offset;
+            roll_target = 0.0;
         }
         else if (data.equals("u"))
         {
@@ -315,16 +316,16 @@ void loop()
         {
             motor_spd -= 5;
         }
-        Serial.println(current_vel);
+        Serial.println(currentVel);
     }
 
     if (motor_spd > 255)
     {
         motor_spd = 255;
     }
-    else if (motor_spd < 200)
+    else if (motor_spd < 150)
     {
-        motor_spd = 200;
+        motor_spd = 150;
     }
 }
 
