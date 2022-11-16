@@ -11,34 +11,12 @@
 #include "Wire.h"
 #endif
 
-#define SERIAL_PRINT true
+#define SERIAL_PRINT false
 #define PID_PRINT false
 
 #define yaw_I false
 
-// class default I2C address is 0x68
-// specific I2C addresses may be passed as a parameter here
-// AD0 low = 0x68 (default for SparkFun breakout and InvenSense evaluation board)
-// AD0 high = 0x69
 MPU6050 mpu;
-// MPU6050 mpu(0x69); // <-- use for AD0 high
-
-/* =========================================================================
-   NOTE: In addition to connection 3.3v, GND, SDA, and SCL, this sketch
-   depends on the MPU-6050's INT pin being connected to the Arduino's
-   external interrupt #0 pin. On the Arduino Uno and Mega 2560, this is
-   digital I/O pin 2.
- * ========================================================================= */
-
-/* =========================================================================
-   NOTE: Arduino v1.0.1 with the Leonardo board generates a compile error
-   when using Serial.write(buf, len). The Teapot output uses this method.
-   The solution requires a modification to the Arduino USBAPI.h file, which
-   is fortunately simple, but annoying. This will be fixed in the next IDE
-   release. For more info, see these links:
-   http://arduino.cc/forum/index.php/topic,109987.0.html
-   http://code.google.com/p/arduino/issues/detail?id=958
- * ========================================================================= */
 
 #define MPU_INTERRUPT_PIN 2 // use pin 2 on Arduino Uno & most boards
 #define ENCODER_INTERRUPT_PIN 3
@@ -100,9 +78,7 @@ volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has g
 void dmpDataReady()
 {
     mpuInterrupt = true;
-    if (!dmpReady)
-        return;
-    mpu.dmpGetCurrentFIFOPacket(fifoBuffer);
+    // DebugPrint("interrupt!\n");
 }
 
 int photoPin = 3;
@@ -135,29 +111,15 @@ void setup()
 
     steeringServo.attach(9);
 
-// join I2C bus (I2Cdev library doesn't do this automatically)
-#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
     Wire.begin();
     Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
     Wire.setWireTimeout(3000, true);
-#elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
-    Fastwire::setup(400, true);
-#endif
 
     // initialize serial communication
-    // (115200 chosen because it is required for Teapot Demo output, but it's
-    // really up to you depending on your project)
     Serial.begin(9600);
     Serial.println("serial connected");
     while (!Serial)
-        ; // wait for Leonardo enumeration, others continue immediately
-
-    // NOTE: 8MHz or slower host processors, like the Teensy @ 3.3V or Arduino
-    // Pro Mini running at 3.3V, cannot handle this baud rate reliably due to
-    // the baud timing being too misaligned with processor ticks. You must use
-    // 38400 or slower in these cases, or use some kind of external separate
-    // crystal solution for the UART timer.
-    // initialize device
+        ;
 
     bool go_next = false;
     while (!go_next)
@@ -226,11 +188,14 @@ void setup()
         mpu.setDMPEnabled(true);
 
         // enable Arduino interrupt detection
-        Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-        Serial.print(digitalPinToInterrupt(MPU_INTERRUPT_PIN));
-        Serial.println(F(")..."));
-        attachInterrupt(digitalPinToInterrupt(MPU_INTERRUPT_PIN), dmpDataReady, RISING);
+
+        // Serial.print(digitalPinToInterrupt(MPU_INTERRUPT_PIN));
+        // Serial.println(F(")..."));
+        // attachInterrupt(digitalPinToInterrupt(MPU_INTERRUPT_PIN), dmpDataReady, RISING);
+
         mpuIntStatus = mpu.getIntStatus();
+
+        Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
 
         // set our DMP Ready flag so the main loop() function knows it's okay to use it
         Serial.println(F("DMP ready! Waiting for first interrupt..."));
@@ -255,65 +220,74 @@ void setup()
     steeringServo.write(90);
 }
 
-void DebugPrint(const char* c)
+void DebugPrint(const char *c)
 {
 #if SERIAL_PRINT == true
     Serial.print(c);
 #endif
 }
-
 void DebugPrint(int i)
 {
 #if SERIAL_PRINT == true
     Serial.print(i);
 #endif
 }
-
+void DebugPrint(int32_t i)
+{
+#if SERIAL_PRINT == true
+    Serial.print(i);
+#endif
+}
 void DebugPrint(float f)
 {
 #if SERIAL_PRINT == true
     Serial.print(f);
 #endif
 }
-
-void DebugPrint(double f)
+void DebugPrint(double d)
 {
 #if SERIAL_PRINT == true
-    Serial.print(f);
+    Serial.print(d);
 #endif
 }
+
 // ================================================================
 // ===                    MAIN PROGRAM LOOP                     ===
 // ================================================================
 
 void loop()
 {
-    // Serial.print(millis() / 1000.0);
-    analogWrite(motor_spd_pin, motor_spd);
-    counting();
-    // if programming failed, don't try to do anything
-    DebugPrint("currentVel ");
-    DebugPrint(velMovAvg.getAverage());
-    DebugPrint(" ");
-    mpu.dmpGetGyro(data, fifoBuffer);
-    // display Euler angles in degrees
-    mpu.dmpGetQuaternion(&q, fifoBuffer);
-    mpu.dmpGetGravity(&gravity, &q);
-    mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+    if (!dmpReady)
+        return;
+    if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
+    {
+        // Serial.print(millis() / 1000.0);
+        analogWrite(motor_spd_pin, motor_spd);
+        counting();
+        // if programming failed, don't try to do anything
+        DebugPrint("currentVel ");
+        DebugPrint(velMovAvg.getAverage());
+        DebugPrint(" ");
+        mpu.dmpGetGyro(data, fifoBuffer);
+        // display Euler angles in degrees
+        mpu.dmpGetQuaternion(&q, fifoBuffer);
+        mpu.dmpGetGravity(&gravity, &q);
+        mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+    }
 
-    DebugPrint("ypr\t");
-    DebugPrint(ypr[0] * 180 / M_PI);
-    DebugPrint("\t");
-    DebugPrint(ypr[1] * 180 / M_PI);
-    DebugPrint("\t");
-    DebugPrint(ypr[2] * 180 / M_PI); // roll 2번
+    // DebugPrint("ypr\t");
+    // DebugPrint(ypr[0] * 180 / M_PI);
+    // DebugPrint("\t");
+    // DebugPrint(ypr[1] * 180 / M_PI);
+    // DebugPrint("\t");
+    // DebugPrint(ypr[2] * 180 / M_PI); // roll 2번
 
-    DebugPrint("data\t");
-    DebugPrint(data[0]);
-    DebugPrint("\t");
-    DebugPrint(data[1]);
-    DebugPrint("\t");
-    DebugPrint(data[2]); // roll 2번
+    // DebugPrint("data\t");
+    // DebugPrint(data[0]);
+    // DebugPrint("\t");
+    // DebugPrint(data[1]);
+    // DebugPrint("\t");
+    // DebugPrint(data[2]); // roll 2번
     safeServo(calc_pid(data[0], ypr[0] * 180 / M_PI, ypr[2] * 180 / M_PI, 0), steeringServo);
 
     blinkState = (millis() / 1000) % 2;
