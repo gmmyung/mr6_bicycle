@@ -89,6 +89,7 @@ void safeServo(float angle, Servo servo);
 
 float init_servo_offset = 0.0;
 float servo_offset = 0.0;
+float current_vel = 0.0;
 
 float motor_spd = 230;
 
@@ -255,6 +256,7 @@ void loop()
 {
     //Serial.print(millis() / 1000.0);
     analogWrite(motor_spd_pin, motor_spd);
+    counting();
     // if programming failed, don't try to do anything
     if (!dmpReady) return;
     // read a packet from FIFO
@@ -265,7 +267,7 @@ void loop()
         Serial.print(velMovAvg.getAverage());
         Serial.print(" ");
 #else
-        velMovAvg.getAverage(); // get value anyway
+        current_vel = velMovAvg.getAverage(); // get value anyway
 #endif
         mpu.dmpGetGyro(data, fifoBuffer);
         // display Euler angles in degrees
@@ -311,6 +313,7 @@ void loop()
         else if (data.equals("d")) {
             motor_spd -= 5;
         }
+        Serial.println(current_vel);
     }
 
     if (motor_spd > 255) {
