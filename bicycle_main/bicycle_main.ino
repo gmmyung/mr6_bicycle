@@ -68,6 +68,7 @@ float init_servo_offset = 0.0;
 float servo_offset = 0.0;
 float current_vel = 0.0;
 float roll_target = 0.0;
+float roll_offset = 0.0;
 
 float motor_spd = 230;
 
@@ -149,7 +150,7 @@ void setup()
     {
         ;
     }
-    init_servo_offset = Serial.readStringUntil('\n').toFloat();
+    roll_offset = Serial.readStringUntil('\n').toFloat();
 
     Serial.print("kp: ");
     Serial.print(ks[0]);
@@ -187,12 +188,6 @@ void setup()
         // turn on the DMP, now that it's ready
         Serial.println(F("Enabling DMP..."));
         mpu.setDMPEnabled(true);
-
-        // enable Arduino interrupt detection
-
-        // Serial.print(digitalPinToInterrupt(MPU_INTERRUPT_PIN));
-        // Serial.println(F(")..."));
-        // attachInterrupt(digitalPinToInterrupt(MPU_INTERRUPT_PIN), dmpDataReady, RISING);
 
         mpuIntStatus = mpu.getIntStatus();
 
@@ -306,7 +301,8 @@ void loop()
         }
         else if (data.equals("c"))
         {
-            roll_target = 0.0;
+            roll_target = roll_offset;
+            Serial.println("roll target initalized");
         }
         else if (data.equals("u"))
         {
@@ -316,17 +312,25 @@ void loop()
         {
             motor_spd -= 5;
         }
+        if (motor_spd > 255)
+        {
+            motor_spd = 255;
+        }
+        else if (motor_spd < 100)
+        {
+            motor_spd = 100;
+        }
+
         Serial.println(currentVel);
+
+        Serial.print("roll_target: ");
+        Serial.print(roll_target);
+        Serial.print(", motor speed: ");
+        Serial.println(motor_spd);
+
     }
 
-    if (motor_spd > 255)
-    {
-        motor_spd = 255;
-    }
-    else if (motor_spd < 150)
-    {
-        motor_spd = 150;
-    }
+
 }
 
 void safeServo(float angle, Servo servo)
