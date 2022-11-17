@@ -11,6 +11,7 @@
 #include "Wire.h"
 #endif
 
+
 #define SERIAL_PRINT false
 #define PID_PRINT false
 
@@ -70,6 +71,10 @@ float current_vel = 0.0;
 float roll_target = 0.0;
 float roll_offset = 0.0;
 
+int32_t global_gyroX;
+float global_yaw = 0.0;
+float global_roll = 0.0;
+
 float motor_spd = 230;
 
 // ================================================================
@@ -90,12 +95,17 @@ int motor_spd_pin = 6;
 volatile float currentVel = 0.0;
 volatile unsigned long lastHitTime;
 
+boolean fitting_mode = false; //determine will it ask kp, ki, kd, and roll offset at every initalization.
+
 RunningAverage velMovAvg(20);
 Servo steeringServo;
 
 // ================================================================
 // ===                      INITIAL SETUP                       ===
 // ================================================================
+
+float prev = millis();
+float now = millis();
 
 void setup()
 {
@@ -124,40 +134,46 @@ void setup()
         ;
 
     bool go_next = false;
+    Serial.println("fitting mode?: (y/n)");
     while (!go_next)
     {
         if (Serial.available())
         {
             String d = Serial.readStringUntil('\n');
             Serial.println(d);
-            if (d.equals("go"))
+            if (d.equals("y"))
             {
                 go_next = true;
+                fitting_mode = true;
+            }
+            else if (d.equals("n")) 
+            {
+                go_next = true;
+                fitting_mode = false;
             }
         }
     }
-    Serial.println("input k values");
-    for (int i = 0; i < 3; i++)
-    {
-        while (!Serial.available())
-        {
-            ;
-        }
-        ks[i] = Serial.readStringUntil('\n').toFloat();
-    }
-    Serial.println("input roll offset");
-    while (!Serial.available())
-    {
-        ;
-    }
-    roll_offset = Serial.readStringUntil('\n').toFloat();
 
-    Serial.print("kp: ");
-    Serial.print(ks[0]);
-    Serial.print(", ki: ");
-    Serial.print(ks[1]);
-    Serial.print(", kd: ");
-    Serial.println(ks[2]);
+    if (fitting_mode)
+    {
+        Serial.println("input k values");
+        for (int i = 0; i < 3; i++)
+        {
+            while (!Serial.available())
+                ;
+            ks[i] = Serial.readStringUntil('\n').toFloat();
+        }
+        Serial.println("input roll offset");
+        while (!Serial.available())
+            ;
+        roll_offset = Serial.readStringUntil('\n').toFloat();
+    }
+    else 
+    {
+        ks[0] = 3.0;
+        roll_offset = 0.0;
+    }
+    StatusPrint();
 
     Serial.println(F("Initializing I2C devices..."));
 
@@ -284,8 +300,9 @@ void loop()
     // DebugPrint(data[1]);
     // DebugPrint("\t");
     // DebugPrint(data[2]); // roll 2번
-    safeServo(calc_pid(data[0], ypr[0] * 180 / M_PI, ypr[2] * 180 / M_PI, roll_target), steeringServo);
 
+    safeServo(calc_pid(data[0], ypr[0] * 180 / M_PI, ypr[2] * 180 / M_PI, roll_target), steeringServo);
+    
     blinkState = (millis() / 1000) % 2;
     digitalWrite(LED_PIN, blinkState);
     if (Serial.available())
@@ -307,10 +324,18 @@ void loop()
         else if (data.equals("u"))
         {
             motor_spd += 5;
+            if (!fitting_mode) 
+            {
+                adaptive_constant_changer();
+            }
         }
         else if (data.equals("d"))
         {
             motor_spd -= 5;
+            if (!fitting_mode) 
+            {
+                adaptive_constant_changer();
+            }
         }
         if (motor_spd > 255)
         {
@@ -320,16 +345,8 @@ void loop()
         {
             motor_spd = 100;
         }
-
-        Serial.println(currentVel);
-
-        Serial.print("roll_target: ");
-        Serial.print(roll_target);
-        Serial.print(", motor speed: ");
-        Serial.println(motor_spd);
-
+        StatusPrint();
     }
-
 
 }
 
@@ -388,11 +405,11 @@ float calc_pid(int32_t gyroX, float yaw, float roll, float target)
     error_sum = yaw;
 #endif
     angle = kp * error + kd * gyroX + ki * error_sum;
-    DebugPrint(" kp: ");
+    DebugPrint(" p: ");
     DebugPrint(kp * error);
-    DebugPrint(" kd: ");
+    DebugPrint(" d: ");
     DebugPrint(kd * gyroX);
-    DebugPrint(" ki: ");
+    DebugPrint(" i: ");
     DebugPrint(ki * error_sum);
     DebugPrint(" angle: ");
     DebugPrint(angle);
@@ -404,4 +421,49 @@ float calc_degree()
     float degree;
     degree = g * b * sin(fai) / (v * v) * (1 - pow(e, (h * v * m * t / D)));
     return degree;
+}
+
+void adaptive_constant_changer() 
+{
+    int bound_num = 1;
+    float spd_bound[bound_num] = {150.0,};
+    float mapped_ks[bound_num + 1][3] = {{2.8, 0.00, 0.0},
+                                         {2.5, 0.0, 0.0}}; //preset {kp, ki, kd}
+    for (int i = 0; i < bound_num; i++)
+    {  
+        if (motor_spd < spd_bound[i])
+        {
+            for (int j = 0; j < 3; j++) 
+            {
+                ks[j] = mapped_ks[i][j];
+            }
+        }
+    }
+}
+
+void StatusPrint() 
+{
+    //setting
+    Serial.print(" roll_target: ");
+    Serial.println(roll_target);
+
+    Serial.print(" kp: ");
+    Serial.print(ks[0]);
+    Serial.print(" ki: ");
+    Serial.print(ks[1]);
+    Serial.print(" kd: ");
+    Serial.println(ks[2]);
+    
+    Serial.print(" motor speed: ");
+    Serial.print(motor_spd / 255 * 100.0);
+    Serial.print("% ");
+    Serial.println(motor_spd);
+
+
+    //values
+    /*
+    Serial.print(" speed: ");
+    Serial.print(currentVel);
+    */
+
 }
