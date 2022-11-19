@@ -97,6 +97,7 @@ int motor_spd_pin = 6;
 volatile float currentVel = 0.0;
 volatile unsigned long lastHitTime;
 
+boolean eight = false;
 boolean fitting_mode = false; //determine will it ask kp, ki, kd, and roll offset at every initalization.
 
 RunningAverage velMovAvg(20);
@@ -152,6 +153,12 @@ void setup()
             {
                 go_next = true;
                 fitting_mode = false;
+            }
+            else if (d.equals("8"))
+            {
+                go_next = true;
+                fitting_mode = false;
+                eight = true;
             }
         }
     }
@@ -433,9 +440,9 @@ void adaptive_constant_changer(float m_spd)
 {
     int bound_num = 2; //except last bound
     float spd_bound[bound_num + 1] = {120.0, 150.0, 255.0};
-    float mapped_constants[bound_num + 1][4] = {{3.0, 0.05, 0.0, 0.75},
-                                                {2.8, 0.0, 0.0, 0.5},
-                                                {2.5, 0.0, 0.0, 0.0}}; //preset {kp, ki, kd}
+    float mapped_constants[bound_num + 1][5] = {{3.0, 0.05, 0.0, 0.75, 1.0},
+                                                {2.8, 0.0, 0.0, 0.5, 1.5},
+                                                {2.5, 0.0, 0.0, 0.0, 2.0}}; //preset {kp, ki, kd, roll_offset, roll_unit_step}
 
     for (int i = 0; i < bound_num + 1; i++)
     {
@@ -445,6 +452,7 @@ void adaptive_constant_changer(float m_spd)
             {
                 constants[j] = mapped_constants[i][j];
             }
+            roll_unit_step = mapped_constants[i][4];
             break;
         }
     }
