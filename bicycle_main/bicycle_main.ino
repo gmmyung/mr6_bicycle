@@ -38,13 +38,14 @@ MPU6050 mpu;
 #define BTRX 0
 #define BTTX 1
 
+
 /* data 참고
 static float kp = 3.0;
 static float ki = 0.1;
 static float kd  = 0.000000;
 */
 
-float ks[3] = {0.0, 0.0, 0.0}; // kp, ki, kd
+float constants[4] = {0.0, 0.0, 0.0, 0.0}; // kp, ki, kd, roll offset
 
 bool blinkState = false;
 
@@ -68,14 +69,15 @@ void safeServo(float angle, Servo servo);
 float init_servo_offset = 0.0;
 float servo_offset = 0.0;
 float current_vel = 0.0;
-float roll_target = 0.0;
-float roll_offset = 0.0;
 
 int32_t global_gyroX;
 float global_yaw = 0.0;
 float global_roll = 0.0;
 
 float motor_spd = 230;
+float roll_unit_step = 2.0;
+float roll_target_num = 0.0;
+
 
 // ================================================================
 // ===               INTERRUPT DETECTION ROUTINE                ===
@@ -161,20 +163,24 @@ void setup()
         {
             while (!Serial.available())
                 ;
-            ks[i] = Serial.readStringUntil('\n').toFloat();
+            constants[i] = Serial.readStringUntil('\n').toFloat();
         }
         Serial.println("input roll offset");
         while (!Serial.available())
             ;
-        roll_offset = Serial.readStringUntil('\n').toFloat();
+        constants[3] = Serial.readStringUntil('\n').toFloat();
     }
     else 
     {
-        ks[0] = 3.0;
-        roll_offset = 0.0;
+        Serial.println("changed constants according to pre-setted values");
+        adaptive_constant_changer(motor_spd);
     }
     StatusPrint();
-
+    
+    Serial.println("input servo offset");
+    while (!Serial.available())
+        ;
+    servo_offset = Serial.readStringUntil('\n').toFloat();
     Serial.println(F("Initializing I2C devices..."));
 
     mpu.initialize();
@@ -301,7 +307,7 @@ void loop()
     // DebugPrint("\t");
     // DebugPrint(data[2]); // roll 2번
 
-    safeServo(calc_pid(data[0], ypr[0] * 180 / M_PI, ypr[2] * 180 / M_PI, roll_target), steeringServo);
+    safeServo(calc_pid(data[0], ypr[0] * 180 / M_PI, ypr[2] * 180 / M_PI, roll_target_num * roll_unit_step + constants[3]), steeringServo);
     
     blinkState = (millis() / 1000) % 2;
     digitalWrite(LED_PIN, blinkState);
@@ -310,15 +316,15 @@ void loop()
         String data = Serial.readStringUntil('\n');
         if (data.equals("l"))
         {
-            roll_target += 0.5;
+            roll_target_num += 1;
         }
         else if (data.equals("r"))
         {
-            roll_target -= 0.5;
+            roll_target_num -= 1;   
         }
         else if (data.equals("c"))
         {
-            roll_target = roll_offset;
+            roll_target_num = 0;
             Serial.println("roll target initalized");
         }
         else if (data.equals("u"))
@@ -326,7 +332,7 @@ void loop()
             motor_spd += 5;
             if (!fitting_mode) 
             {
-                adaptive_constant_changer();
+                adaptive_constant_changer(motor_spd);
             }
         }
         else if (data.equals("d"))
@@ -334,7 +340,7 @@ void loop()
             motor_spd -= 5;
             if (!fitting_mode) 
             {
-                adaptive_constant_changer();
+                adaptive_constant_changer(motor_spd);
             }
         }
         if (motor_spd > 255)
@@ -390,9 +396,9 @@ float calc_pid(int32_t gyroX, float yaw, float roll, float target)
     float angle;
     float kp, kd, ki;
 
-    kp = ks[0];
-    ki = ks[1];
-    kd = ks[2];
+    kp = constants[0];
+    ki = constants[1];
+    kd = constants[2];
 
     currentTime = millis();
     error = target - roll;
@@ -423,20 +429,23 @@ float calc_degree()
     return degree;
 }
 
-void adaptive_constant_changer() 
+void adaptive_constant_changer(float m_spd) 
 {
-    int bound_num = 1;
-    float spd_bound[bound_num] = {150.0,};
-    float mapped_ks[bound_num + 1][3] = {{2.8, 0.00, 0.0},
-                                         {2.5, 0.0, 0.0}}; //preset {kp, ki, kd}
-    for (int i = 0; i < bound_num; i++)
-    {  
-        if (motor_spd < spd_bound[i])
+    int bound_num = 2; //except last bound
+    float spd_bound[bound_num + 1] = {120.0, 150.0, 255.0};
+    float mapped_constants[bound_num + 1][4] = {{3.0, 0.05, 0.0, 0.75},
+                                                {2.8, 0.0, 0.0, 0.5},
+                                                {2.5, 0.0, 0.0, 0.0}}; //preset {kp, ki, kd}
+
+    for (int i = 0; i < bound_num + 1; i++)
+    {
+        if (m_spd < spd_bound[i])
         {
-            for (int j = 0; j < 3; j++) 
+            for (int j = 0; j < 4; j++) 
             {
-                ks[j] = mapped_ks[i][j];
+                constants[j] = mapped_constants[i][j];
             }
+            break;
         }
     }
 }
@@ -445,14 +454,14 @@ void StatusPrint()
 {
     //setting
     Serial.print(" roll_target: ");
-    Serial.println(roll_target);
+    Serial.println(roll_target_num * roll_unit_step);
 
     Serial.print(" kp: ");
-    Serial.print(ks[0]);
+    Serial.print(constants[0]);
     Serial.print(" ki: ");
-    Serial.print(ks[1]);
+    Serial.print(constants[1]);
     Serial.print(" kd: ");
-    Serial.println(ks[2]);
+    Serial.println(constants[2]);
     
     Serial.print(" motor speed: ");
     Serial.print(motor_spd / 255 * 100.0);
