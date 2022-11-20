@@ -33,7 +33,7 @@ MPU6050 mpu;
 #define t 1.0   //시간?
 #define m 1.0   //자전거 질량
 
-#define SAFE_SERVO_RANGE 45
+#define SAFE_SERVO_RANGE 50
 
 #define BTRX 0
 #define BTTX 1
@@ -354,9 +354,9 @@ void loop()
         {
             motor_spd = 255;
         }
-        else if (motor_spd < 100)
+        else if (motor_spd < 130)
         {
-            motor_spd = 100;
+            motor_spd = 130;
         }
         StatusPrint();
     }
@@ -393,7 +393,7 @@ void counting()
 float calc_pid(int32_t gyroX, float yaw, float roll, float target)
 {
     static unsigned long lastTime = 0;
-    const float maxInteg = 2;
+    const float maxInteg = 5;
     unsigned long currentTime;
     static long error_sum = 0;
     float target_degree;
@@ -439,10 +439,10 @@ float calc_degree()
 void adaptive_constant_changer(float m_spd) 
 {
     int bound_num = 2; //except last bound
-    float spd_bound[bound_num + 1] = {120.0, 150.0, 255.0};
-    float mapped_constants[bound_num + 1][5] = {{3.0, 0.05, 0.0, 0.75, 1.0},
-                                                {2.8, 0.0, 0.0, 0.5, 1.5},
-                                                {2.5, 0.0, 0.0, 0.0, 2.0}}; //preset {kp, ki, kd, roll_offset, roll_unit_step}
+    float spd_bound[bound_num + 1] = {170.0, 220.0, 255.0};
+    float mapped_constants[bound_num + 1][5] = {{3.5, 0.0, 0.0, 0.5, 0.3},
+                                                {3.2, 0.0, 0.0, 0.2, 0.6},
+                                                {3.0, 0.0, 0.0, 0.0, 1.0}}; //preset {kp, ki, kd, roll_offset, roll_unit_step}
 
     for (int i = 0; i < bound_num + 1; i++)
     {
